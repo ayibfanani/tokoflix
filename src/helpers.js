@@ -1,3 +1,7 @@
+import axios from 'axios';
+
+const api_key = '5f65b6881e1a97de7270224a4edf09d1';
+
 export function getParam(key) {
   let url = window.location.href;
   url = new URL(url);
@@ -34,4 +38,46 @@ export function slugify(string) {
   slug = slug.replace(/\s+/g, '-');
 
   return slug;
+}
+
+export function apiEndpoint(api, params = null) {
+  params = params !== null
+    ? Object.keys(params).map(key => key + '=' + params[key]).join('&') : '';
+
+  return `https://api.themoviedb.org/3/${api}?language=en-US&api_key=${api_key}&${params}`;
+}
+
+export function getImage(path) {
+  return `https://image.tmdb.org/t/p/w500/${path}`;
+}
+
+export function getGenres(vm) {
+  let endpoint = `https://api.themoviedb.org/3/genre/movie/list?language=en-US&api_key=${api_key}`;
+
+  axios.get(endpoint).then(({ data }) => {
+    vm.setState({
+      genres: data.genres
+    })
+  }).catch(({ response }) => {
+    console.log(response)
+  });
+}
+
+export function purchase(vm, movie_id) {
+  let endpoint = apiEndpoint(`movie/${movie_id}`);;
+  let balance_amount = parseInt(vm.props.balance.amount)
+
+  axios.get(endpoint).then(({ data }) => {
+    let price_amount = parseInt(getPriceRate(data.vote_average));
+
+    if (balance_amount < price_amount) {
+      console.log('Your balance not enough to purchase this movie!')
+    } else {
+      vm.props.actions.purchase(data.id);
+      vm.props.actions.setBalance(balance_amount - price_amount);
+      vm.props.actions.setNotif({ type: 'success', response: `Successfully purchased: ${data.title}!` });
+    }
+  }).catch(({ response }) => {
+    console.log(response)
+  })
 }

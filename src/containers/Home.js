@@ -1,11 +1,12 @@
 import React, { Component } from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
-import {Link} from 'react-router-dom';
+import {Link, withRouter} from 'react-router-dom';
 import axios from 'axios';
 import collect from 'collect.js';
-import { getPriceRate, getParam, slugify } from 'helpers';
+import { getPriceRate, getParam, slugify, getImage, purchase as buy } from 'helpers';
 import {setNotif, clearNotif, purchase, setBalance} from 'store/actions';
+import { apiEndpoint } from '../helpers';
 
 class Home extends Component {
   constructor(props) {
@@ -29,7 +30,7 @@ class Home extends Component {
 
   fetchData(page = 1) {
     const vm = this;
-    let endpoint = 'https://api.themoviedb.org/3/movie/now_playing?language=en-US&api_key=5f65b6881e1a97de7270224a4edf09d1&';
+    let endpoint = apiEndpoint('movie/now_playing');
     endpoint = endpoint.concat(`&page=${page}`);
 
     axios.get(endpoint)
@@ -42,23 +43,7 @@ class Home extends Component {
   }
 
   purchase(movie_id) {
-    const vm = this;
-    let endpoint = `https://api.themoviedb.org/3/movie/${movie_id}?language=en-US&api_key=5f65b6881e1a97de7270224a4edf09d1`;
-    let balance_amount = parseInt(vm.props.balance.amount)
-
-    axios.get(endpoint).then(({ data }) => {
-      let price_amount = parseInt(getPriceRate(data.vote_average));
-
-      if (balance_amount < price_amount) {
-        console.log('Your balance not enough to purchase this movie!')
-      } else {
-        vm.props.actions.purchase(data.id);
-        vm.props.actions.setBalance(balance_amount - price_amount);
-        vm.props.actions.setNotif({ type: 'success', response: `Successfully purchased: ${data.title}!` });
-      }
-    }).catch(({ response }) => {
-      console.log(response)
-    })
+    buy(this, movie_id)
   }
 
   onChangePage = (page) => {
@@ -69,7 +54,24 @@ class Home extends Component {
       vm.props.history.push(`/?page=${page}`);
       vm.fetchData(page);
     });
-  };
+  }
+
+  onSubmitSearch(e) {
+    e.preventDefault();
+    const vm = this;
+    const search = document.getElementsByName('search')[0].value;
+    const endpoint = apiEndpoint(`search/movie`, {
+      query: search
+    });
+
+    axios.get(endpoint)
+      .then(({ data }) => {
+        console.log(data)
+      })
+      .catch(({ response }) => {
+        console.log(response)
+      });
+  }
 
   render() {
     const vm = this;
@@ -89,16 +91,18 @@ class Home extends Component {
           <span className="flow-3"></span>
         </div>
         <div className="section">
-          <div className="box">
+          {/* <div className="box">
             <div className="field has-addons">
-              <div className="control is-expanded">
-                <input className="input has-text-centered" type="search" placeholder="» » » » » » find me « « « « « «" />
-              </div>
-              <div className="control">
-                <a className="button is-info">Search</a>
-              </div>
+              <form onSubmit={(e) => this.onSubmitSearch(e)}>
+                <div className="control is-expanded">
+                  <input className="input has-text-centered" type="search" placeholder="» » » » » » find me « « « « « «" name="search" />
+                </div>
+                <div className="control">
+                  <button className="button is-info">Search</button>
+                </div>
+              </form>
             </div>
-          </div>
+          </div> */}
 
           {
             now_playing !== null
@@ -117,7 +121,7 @@ class Home extends Component {
                               </span>
                               <Link to={`/${movie.id}-${slugify(movie.title)}`}>
                                 <figure className="image">
-                                  <img src={`https://image.tmdb.org/t/p/w500/${movie.poster_path}`} alt="" />
+                                  <img src={getImage(movie.poster_path)} alt="" />
                                 </figure>
                               </Link>
                             </div>
@@ -184,4 +188,4 @@ const mapDispatchToProps = (dispatch) => {
   }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(Home)
+export default withRouter(connect(mapStateToProps, mapDispatchToProps)(Home))

@@ -28,7 +28,7 @@ class Header extends Component {
               </Link>
               <div className="navbar-item has-dropdown is-hoverable">
                 <a className="navbar-link">
-                  {purchased_movies.length}&nbsp;<i className="fa fa-shopping-cart"></i>&nbsp;Items
+                  {purchased_movies.length}&nbsp;<i className="fa fa-film"></i>&nbsp;Items
                 </a>
                 <div className="navbar-dropdown">
                   <a className="navbar-item">

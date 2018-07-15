@@ -2,7 +2,11 @@ import React, { Component } from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {setNotif, clearNotif, purchase, setBalance} from 'store/actions';
+import {Link, withRouter} from 'react-router-dom';
 import axios from 'axios';
+import collect from 'collect.js';
+import { getImage, apiEndpoint, getPriceRate, purchase as buy, slugify } from 'helpers';
+import ReactStars from 'react-stars';
 
 class Detail extends Component {
   constructor(props) {
@@ -13,48 +17,116 @@ class Detail extends Component {
 
     this.state = {
       id: movie_id,
-      is_purchased: false,
+      videos: [],
+      credits: {
+        crew: [],
+        cast: []
+      },
+      similar: {
+        page: 1,
+        results: []
+      },
+      recommended: {
+        page: 1,
+        results: []
+      },
       movie: {
         title: '',
-        backdrop_path: ''
+        backdrop_path: '',
+        genres: [],
+        production_countries: [],
       }
     }
   }
 
   componentWillMount() {
     this.getMovie();
+    this.getVideos();
+    this.getCredits();
+    this.getSimilar();
+    this.getRecommendations();
   }
 
   getMovie() {
     const vm = this;
     const movie_id = this.state.id;
-    let endpoint = `https://api.themoviedb.org/3/movie/${movie_id}?language=en-US&api_key=5f65b6881e1a97de7270224a4edf09d1`;
-    let balance_amount = parseInt(vm.props.balance.amount);
-    const purchased_movies = this.props.movies.purchased;
+    let endpoint = apiEndpoint(`movie/${movie_id}`);
 
     axios.get(endpoint).then(({ data }) => {
-      let is_purchased = purchased_movies.indexOf(data.id) != -1;
-
-      vm.setState({
-        movie: data,
-        is_purchased
-      });
+      vm.setState({ movie: data });
     }).catch(({ response }) => {
       console.log(response)
     })
   }
 
+  getVideos() {
+    const vm = this;
+    const movie_id = this.state.id;
+    const endpoint = apiEndpoint(`movie/${movie_id}/videos`);
+
+    axios.get(endpoint).then(({ data }) => {
+      vm.setState({ videos: data.results });
+    }).catch(({ response }) => {
+      console.log(response)
+    })
+  }
+
+  getCredits() {
+    const vm = this;
+    const movie_id = this.state.id;
+    const endpoint = apiEndpoint(`movie/${movie_id}/credits`);
+
+    axios.get(endpoint).then(({ data }) => {
+      vm.setState({ credits: data });
+    }).catch(({ response }) => {
+      console.log(response)
+    })
+  }
+
+  getSimilar() {
+    const vm = this;
+    const movie_id = this.state.id;
+    const endpoint = apiEndpoint(`movie/${movie_id}/similar`);
+
+    axios.get(endpoint).then(({ data }) => {
+      vm.setState({ similar: data });
+    }).catch(({ response }) => {
+      console.log(response)
+    })
+  }
+
+  getRecommendations() {
+    const vm = this;
+    const movie_id = this.state.id;
+    const endpoint = apiEndpoint(`movie/${movie_id}/recommendations`);
+
+    axios.get(endpoint).then(({ data }) => {
+      vm.setState({ recommended: data });
+    }).catch(({ response }) => {
+      console.log(response)
+    })
+  }
+
+  purchase(movie_id) {
+    buy(this, movie_id);
+  }
+
   render() {
     const movie = this.state.movie;
+    const purchased_movies = this.props.movies.purchased;
+    const is_purchased = purchased_movies.indexOf(movie.id) != -1
+      ? true : false;
+    const genres = movie.genres;
+    const countries = movie.production_countries;
+    const credits = this.state.credits;
+    const videos = this.state.videos;
+    const similar = collect(this.state.similar.results).chunk(6).toArray();
+    const recommended = collect(this.state.recommended.results).chunk(6).toArray();
 
     return (
       <div>
         <section className="hero is-info is-medium is-bold">
-          <div className="hero-body" style={{backgroundImage: `url(https://image.tmdb.org/t/p/w500/${movie.backdrop_path})`}}>
-            <div className="container has-text-centered">
-              <h1 className="title">{movie.title}</h1>
-            </div>
-          </div>
+          <div className="hero-body" style={{backgroundImage: `url(${getImage(movie.backdrop_path)})`}}></div>
         </section>
 
         <div className="container">
@@ -62,97 +134,187 @@ class Detail extends Component {
             <div className="column is-8 is-offset-2">
               <div className="card article">
                 <div className="card-content">
-                  <div className="media">
-                    <div className="media-content has-text-centered">
-                      <p className="title article-title">Introducing a new feature for paid subscribers</p>
-                      <div className="tags has-addons level-item">
-                        <span className="tag is-rounded is-info">@skeetskeet</span>
-                        <span className="tag is-rounded">May 10, 2018</span>
+                  <div className="columns is-mobile">
+                    <div className="column is-one-quarter">
+                      <figure className="image">
+                        <img src={getImage(movie.poster_path)}/>
+                      </figure>
+                    </div>
+                    <div className="column">
+                      <h3 className="title is-3">{movie.title}</h3>
+                      <p className="subtitle"><small>{movie.tagline}</small></p>
+
+                      <div className="columns is-mobile">
+                        <div className="column">
+                          <p className="subtitle is-6 has-text-grey"><small>{movie.release_date}</small></p>
+                        </div>
+                        <div className="column">
+                          {
+                            countries.map((country, key) => (
+                              <p key={key} className="subtitle is-6 has-text-grey">
+                                <small>
+                                    {country.name}
+                                </small>
+                              </p>
+                            ))
+                          }
+                        </div>
+                        <div className="column">
+                          <span className="tag is-dark">
+                            {movie.runtime}min
+                          </span>
+                        </div>
+                      </div>
+                      <hr/>
+
+                      <div className="columns is-mobile">
+                        <div className="column is-one-quarter">
+                          <span className="tag is-warning is-large">{movie.vote_average}</span>
+                        </div>
+                        <div className="column">
+                          <ReactStars
+                            count={10}
+                            value={movie.vote_average}
+                            edit={false}
+                            size={30}
+                            color2={'#ffdd57'} />
+                        </div>
+                      </div>
+
+                      <hr style={{marginTop: 10, marginBottom: 10}} />
+                      {
+                        genres.map((genre, key) => (
+                          <span key={key}><span className="tag">{genre.name}</span>&nbsp;</span>
+                        ))
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {
+                is_purchased
+                  ? (
+                    <button className="button is-success is-fullwidth" style={{borderRadius: 0}} disabled>
+                      <i className="fa fa-check"></i>&nbsp;Purchased
+                    </button>
+                  ) : (
+                    <button className="button is-info is-fullwidth" style={{borderRadius: 0}} onClick={() => this.purchase(movie.id)}>
+                      Purchase Rp. {getPriceRate(movie.vote_average)}
+                    </button>
+                  )
+              }
+
+              <div className="card article">
+                <div className="card-content">
+                  <div className="content article-body">
+                    <h4 className="title is-4">Videos</h4>
+                    <hr/>
+                  </div>
+                </div>
+
+                {
+                  videos.map((video, key) => (
+                    <div className="columns" key={key}>
+                      <div className="column">
+                        <iframe width="100%" height="450" src={`https://www.youtube.com/embed/${video.key}`} frameBorder="0" allow="autoplay; encrypted-media" allowFullScreen></iframe>
                       </div>
                     </div>
-                  </div>
-                  <div className="content article-body">
-                    <p>Non arcu risus quis varius quam quisque. Dictum varius duis at consectetur lorem. Posuere sollicitudin aliquam ultrices sagittis orci a scelerisque purus semper. </p>
-                    <p>Metus aliquam eleifend mi in nulla posuere sollicitudin aliquam ultrices. In hac habitasse platea dictumst vestibulum rhoncus est pellentesque elit. Accumsan lacus vel facilisis volutpat. Non sodales neque sodales ut etiam.
-                                  Est pellentesque elit ullamcorper dignissim cras tincidunt lobortis feugiat vivamus.</p>
-                    <h3 className="has-text-centered">How to properly center tags in bulma?</h3>
-                    <p> Proper centering of tags in bulma is done with class: level-item
-                      Voluptat ut farmacium tellus in metus vulputate. Feugiat in fermentum posuere urna nec. Pharetra convallis posuere morbi leo urna molestie.
-                                  Accumsan lacus vel facilisis volutpat est velit egestas. Fermentum leo vel orci porta. Faucibus interdum posuere lorem ipsum.</p>
-                  </div>
-                </div>
+                  ))
+                }
               </div>
+
               <div className="card article">
                 <div className="card-content">
-                  <div className="media">
-                    <div className="media-center">
-                      <img src="http://www.radfaces.com/images/avatars/daria-morgendorffer.jpg" className="author-image" alt="Placeholder image" />
-                    </div>
-                    <div className="media-content has-text-centered">
-                      <p className="title article-title">Sapien eget mi proin sed 🔱</p>
-                      <p className="subtitle is-6 article-subtitle">
-                        <a href="#">@daria</a> on February 17, 2018
-                      </p>
-                    </div>
-                  </div>
                   <div className="content article-body">
+                    <h4 className="title is-4">Synopsis</h4>
+                    <hr/>
                     <p>
-                      Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Accumsan lacus vel facilisis volutpat est velit egestas. Sapien eget mi proin sed. Sit amet mattis vulputate enim.
-                    </p>
-                    <p>
-                      Commodo ullamcorper a lacus vestibulum sed arcu. Fermentum leo vel orci porta non. Proin fermentum leo vel orci porta non pulvinar. Imperdiet proin fermentum leo vel. Tortor posuere ac ut consequat semper viverra. Vestibulum lectus mauris ultrices eros.
-                    </p>
-                    <h3 className="has-text-centered">Lectus vestibulum mattis ullamcorper velit sed ullamcorper morbi. Cras tincidunt lobortis feugiat vivamus.</h3>
-                    <p>
-                      In eu mi bibendum neque egestas congue quisque egestas diam. Enim nec dui nunc mattis enim ut tellus. Ut morbi tincidunt augue interdum velit euismod in. At in tellus integer feugiat scelerisque varius morbi enim nunc. Vitae suscipit tellus mauris a diam.
-                                  Arcu non sodales neque sodales ut etiam sit amet.
+                      {movie.overview}
                     </p>
                   </div>
                 </div>
               </div>
-              <section className="hero is-info is-bold is-small promo-block">
-                <div className="hero-body">
-                  <div className="container">
-                    <h1 className="title">
-                      <i className="fa fa-bell-o"></i> Nemo enim ipsam voluptatem quia.
-                    </h1>
-                    <span className="tag is-black is-medium is-rounded">
-                      Natus error sit voluptatem
-                    </span>
-                  </div>
-                </div>
-              </section>
+
               <div className="card article">
                 <div className="card-content">
-                  <div className="media">
-                    <div className="media-center">
-                      <img src="http://www.radfaces.com/images/avatars/angela-chase.jpg" className="author-image" alt="Placeholder image" />
-                    </div>
-                    <div className="media-content has-text-centered">
-                      <p className="title article-title">Cras tincidunt lobortis feugiat vivamus.</p>
-                      <p className="subtitle is-6 article-subtitle">
-                        <a href="#">@angela</a> on October 7, 2017
-                      </p>
-                    </div>
-                  </div>
                   <div className="content article-body">
-                    <p>
-                      Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Accumsan lacus vel facilisis volutpat est velit egestas. Sapien eget mi proin sed. Sit amet mattis vulputate enim.
-                    </p>
-                    <p>
-                      Commodo ullamcorper a lacus vestibulum sed arcu. Fermentum leo vel orci porta non. Proin fermentum leo vel orci porta non pulvinar. Imperdiet proin fermentum leo vel. Tortor posuere ac ut consequat semper viverra. Vestibulum lectus mauris ultrices eros.
-                    </p>
-                    <h3 className="has-text-centered">“Everyone should be able to do one card trick, tell two jokes, and recite three poems, in case they are ever trapped in an elevator.”</h3>
-                    <p>
-                      In eu mi bibendum neque egestas congue quisque egestas diam. Enim nec dui nunc mattis enim ut tellus. Ut morbi tincidunt augue interdum velit euismod in. At in tellus integer feugiat scelerisque varius morbi enim nunc. Vitae suscipit tellus mauris a diam.
-                                  Arcu non sodales neque sodales ut etiam sit amet.
-                    </p>
+                    <h4 className="title is-4">Casts</h4>
+                    <hr/>
+                    {
+                      credits.cast.map((cs, key) => (
+                        <article className="media" key={key}>
+                          <figure className="media-left">
+                            <p className="image is-48x48">
+                              <img src={getImage(cs.profile_path)}/>
+                            </p>
+                          </figure>
+                          <div className="media-content" style={{margin: 0}}>
+                            <div className="content">
+                              <p>
+                                <strong style={{color: '#363636'}}>{cs.name}</strong>
+                                <br/>
+                                {cs.character}
+                              </p>
+                            </div>
+                          </div>
+                        </article>
+                      ))
+                    }
                   </div>
                 </div>
               </div>
             </div>
           </section>
         </div>
+
+        <div className="container">
+          <div className="box">
+            <h5 className="title is-5">Similar Movies</h5>
+            <hr/>
+            {
+              similar.map((sim_arr, sim_key) => (
+                <div className="columns is-centered" key={sim_key}>
+                  {
+                    sim_arr.map((sim_movie, key) => (
+                      <div className="column is-2" key={key}>
+                        <Link to={`/${sim_movie.id}-${slugify(sim_movie.title)}`}>
+                          <img src={getImage(sim_movie.poster_path)} />
+                        </Link>
+                      </div>
+                    ))
+                  }
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <br/>
+        <br/>
+
+        <div className="container">
+          <div className="box">
+            <h5 className="title is-5">Recommended Movies</h5>
+            <hr/>
+            {
+              recommended.map((rec_arr, rec_key) => (
+                <div className="columns is-centered" key={rec_key}>
+                  {
+                    rec_arr.map((rec_movie, key) => (
+                      <div className="column is-2" key={key}>
+                        <Link to={`/${rec_movie.id}-${slugify(rec_movie.title)}`}>
+                          <img src={getImage(rec_movie.poster_path)} />
+                        </Link>
+                      </div>
+                    ))
+                  }
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <br/>
       </div>
     )
   }
@@ -171,4 +333,4 @@ const mapDispatchToProps = (dispatch) => {
   }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(Detail)
+export default withRouter(connect(mapStateToProps, mapDispatchToProps)(Detail))
